@@ -1,17 +1,28 @@
+export type SpellSchool =
+  | 'Abiurazione'
+  | 'Ammaliamento'
+  | 'Divinazione'
+  | 'Evocazione'
+  | 'Illusione'
+  | 'Invocazione'
+  | 'Necromanzia'
+  | 'Trasmutazione';
+
 export interface Spell {
   id: string;
   name: string;
   level: number;
+  school: SpellSchool;
   description: string;
   effect: string;
   castingTime: string;
   duration: string;
+  range: string;
+  resistance: boolean;
   savingThrow?: {
     type: 'fortitude' | 'reflex' | 'will';
     effect: string;
   };
-  range: string;
-  resistance: boolean;
 }
 
 export interface CharacterStats {

@@ -1,8 +1,6 @@
-// src/components/Spells.tsx
-
 import React, { useState, useEffect } from 'react';
-import { Book, Plus, Search, Edit2, Trash2, Save, X, RefreshCw } from 'lucide-react';
-import type { Spell, Character, SpellSlot, Capability } from '../types';
+import { Book, Plus, Search, Edit2, Trash2, Save } from 'lucide-react';
+import type { Spell, Character, SpellSlot, Capability, SpellSchool } from '../types';
 import SpellSlots from './SpellSlots';
 import Capabilities from './Capabilities';
 import { calculateModifier } from '../utils/dndCalculations';
@@ -26,6 +24,28 @@ const SLOT_COLORS = [
   'from-cyan-400 to-cyan-500',     // Livello 9
 ];
 
+const SCHOOL_COLORS: { [key in SpellSchool]: string } = {
+  Abiurazione: 'from-blue-400 to-blue-500',
+  Ammaliamento: 'from-purple-400 to-purple-500',
+  Divinazione: 'from-yellow-400 to-yellow-500',
+  Evocazione: 'from-red-400 to-red-500',
+  Illusione: 'from-pink-400 to-pink-500',
+  Invocazione: 'from-green-400 to-green-500',
+  Necromanzia: 'from-gray-400 to-gray-500',
+  Trasmutazione: 'from-indigo-400 to-indigo-500',
+};
+
+const SPELL_SCHOOLS: SpellSchool[] = [
+  'Abiurazione',
+  'Ammaliamento',
+  'Divinazione',
+  'Evocazione',
+  'Illusione',
+  'Invocazione',
+  'Necromanzia',
+  'Trasmutazione',
+];
+
 export default function Spells({ character, onUpdate }: SpellsProps) {
   const [showSpellModal, setShowSpellModal] = useState(false);
   const [editingSpell, setEditingSpell] = useState<Spell | null>(null);
@@ -41,26 +61,26 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
   const [spellForm, setSpellForm] = useState<Partial<Spell>>({
     name: '',
     level: 0,
+    school: 'Abiurazione',
     description: '',
     effect: '',
     castingTime: '',
     duration: '',
     range: '',
     resistance: false,
-    savingThrow: undefined
+    savingThrow: undefined,
   });
 
   useEffect(() => {
-    console.log('Character data:', character);
     setSlots(character.spellSlots || Array.from({ length: 10 }, (_, i) => ({ level: i, total: 0, used: 0 })));
     setCapabilities(character.capabilities || []);
   }, [character.spellSlots, character.capabilities]);
 
   const handleSaveSpell = async () => {
-    // Validazione completa dei campi obbligatori
     if (
       !spellForm.name?.trim() ||
       spellForm.level === undefined ||
+      !spellForm.school ||
       !spellForm.description?.trim() ||
       !spellForm.effect?.trim() ||
       !spellForm.castingTime?.trim() ||
@@ -72,11 +92,11 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
       return;
     }
 
-    // Costruzione dell'oggetto Spell assicurandosi che tutti i campi siano definiti
     const spellToSave: Spell = {
       id: editingSpell ? editingSpell.id : Date.now().toString(),
       name: spellForm.name.trim(),
       level: spellForm.level,
+      school: spellForm.school as SpellSchool,
       description: spellForm.description.trim(),
       effect: spellForm.effect.trim(),
       castingTime: spellForm.castingTime.trim(),
@@ -87,15 +107,15 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
         savingThrow: {
           type: spellForm.savingThrow.type,
           effect: spellForm.savingThrow.effect.trim(),
-        }
+        },
       }),
     };
 
     try {
       const updatedSpells = [...(character.spells || [])];
-      
+
       if (editingSpell) {
-        const index = updatedSpells.findIndex(s => s.id === editingSpell.id);
+        const index = updatedSpells.findIndex((s) => s.id === editingSpell.id);
         if (index !== -1) {
           updatedSpells[index] = spellToSave;
         }
@@ -103,14 +123,10 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
         updatedSpells.push(spellToSave);
       }
 
-      // Rimuovi eventuali undefined dai campi
-      const sanitizedSpells = updatedSpells.map(spell => {
-        const { savingThrow, ...rest } = spell;
-        return savingThrow ? { ...rest, savingThrow } : rest;
-      });
+      const sanitizedSpells = removeUndefined(updatedSpells);
 
       await onUpdate({
-        spells: sanitizedSpells
+        spells: sanitizedSpells,
       });
 
       setShowSpellModal(false);
@@ -118,15 +134,16 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
       setSpellForm({
         name: '',
         level: 0,
+        school: 'Abiurazione',
         description: '',
         effect: '',
         castingTime: '',
         duration: '',
         range: '',
         resistance: false,
-        savingThrow: undefined
+        savingThrow: undefined,
       });
-      
+
       toast.success(editingSpell ? 'Incantesimo modificato' : 'Incantesimo aggiunto');
     } catch (error: any) {
       console.error('Error saving spell:', error.message, error);
@@ -136,9 +153,9 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
 
   const handleDeleteSpell = async (spellId: string) => {
     try {
-      const updatedSpells = character.spells?.filter(s => s.id !== spellId) || [];
+      const updatedSpells = character.spells?.filter((s) => s.id !== spellId) || [];
       await onUpdate({
-        spells: updatedSpells
+        spells: updatedSpells,
       });
       setDeleteConfirmation(null);
       setSelectedSpell(null);
@@ -152,7 +169,7 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
   const handleUpdateSlots = async (newSlots: SpellSlot[]) => {
     try {
       await onUpdate({
-        spellSlots: newSlots
+        spellSlots: newSlots,
       });
       setSlots(newSlots);
     } catch (error: any) {
@@ -164,7 +181,7 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
   const handleUpdateCapabilities = async (newCapabilities: Capability[]) => {
     try {
       await onUpdate({
-        capabilities: newCapabilities
+        capabilities: newCapabilities,
       });
       setCapabilities(newCapabilities);
     } catch (error: any) {
@@ -173,11 +190,11 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
     }
   };
 
-  // Raggruppa gli incantesimi per livello
   const spellsByLevel = (character.spells || [])
-    .filter(spell => {
-      const matchesSearch = spell.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          spell.description.toLowerCase().includes(searchQuery.toLowerCase());
+    .filter((spell) => {
+      const matchesSearch =
+        spell.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        spell.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesLevel = filterLevel === 'all' || spell.level === filterLevel;
       return matchesSearch && matchesLevel;
     })
@@ -192,9 +209,26 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
   const charismaMod = character.stats?.abilities?.charisma ? calculateModifier(character.stats.abilities.charisma) : 0;
   const baseCD = 10 + charismaMod;
 
+  const getSchoolColor = (school: SpellSchool) => {
+    return SCHOOL_COLORS[school] || 'from-gray-400 to-gray-500';
+  };
+
+  const removeUndefined = (obj: any): any => {
+    if (Array.isArray(obj)) {
+      return obj.map((item) => removeUndefined(item));
+    } else if (obj !== null && typeof obj === 'object') {
+      return Object.entries(obj).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = removeUndefined(value);
+        }
+        return acc;
+      }, {} as any);
+    }
+    return obj;
+  };
+
   return (
     <div className="space-y-8">
-      {/* Intestazione e Pulsante Aggiungi Incantesimo Spostato Sopra la Lista */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
           Incantesimi
@@ -210,25 +244,29 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
       </div>
 
       {/* Capacità */}
-      <div className="p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-teal-600/10 
-                    border border-white/10">
+      <div
+        className="p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-teal-600/10 
+                          border border-white/10"
+      >
         <Capabilities capabilities={capabilities} onUpdate={handleUpdateCapabilities} />
       </div>
 
       {/* Classe Difficoltà (CD) */}
-      <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-600/10 
-                    border border-white/10">
+      <div
+        className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-600/10 
+                          border border-white/10"
+      >
         <div className="flex items-center gap-2 mb-2">
           <h3 className="text-lg font-medium text-gray-300">Classe Difficoltà</h3>
         </div>
-        <p className="text-gray-400">
-          CD = {baseCD} + Livello Incantesimo
-        </p>
+        <p className="text-gray-400">CD = {baseCD} + Livello Incantesimo</p>
       </div>
 
       {/* Spell Slots */}
-      <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-600/10 
-                    border border-white/10">
+      <div
+        className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-600/10 
+                          border border-white/10"
+      >
         <h3 className="text-lg font-medium text-gray-300 mb-4">Slot Incantesimi</h3>
         <SpellSlots slots={slots} onUpdate={handleUpdateSlots} />
       </div>
@@ -244,18 +282,20 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cerca incantesimi..."
               className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg
-                       text-gray-100 placeholder-gray-500 focus:border-purple-500"
+                               text-gray-100 placeholder-gray-500 focus:border-purple-500"
             />
           </div>
           <select
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg
-                     text-gray-100 focus:border-purple-500"
+                             text-gray-100 focus:border-purple-500"
           >
             <option value="all">Tutti i livelli</option>
             {[...Array(10)].map((_, i) => (
-              <option key={i} value={i}>Livello {i}</option>
+              <option key={i} value={i}>
+                Livello {i}
+              </option>
             ))}
           </select>
         </div>
@@ -270,17 +310,19 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
             .sort(([a], [b]) => Number(a) - Number(b))
             .map(([level, spells]) => (
               <div key={level} className="space-y-4">
-                <h3 className={`text-2xl font-medieval bg-gradient-to-r 
-                             ${SLOT_COLORS[Number(level)]} bg-clip-text text-transparent`}>
+                <h3
+                  className={`text-2xl font-medieval bg-gradient-to-r 
+                                     ${SLOT_COLORS[Number(level)]} bg-clip-text text-transparent`}
+                >
                   Livello {level}
                 </h3>
                 <div className="grid gap-2">
-                  {spells.map(spell => (
+                  {spells.map((spell) => (
                     <div
                       key={spell.id}
                       onClick={() => setSelectedSpell(selectedSpell?.id === spell.id ? null : spell)}
                       className="p-3 rounded-lg bg-white/5 backdrop-blur-lg border border-white/10 
-                               hover:bg-white/10 cursor-pointer transition-all"
+                                       hover:bg-white/10 cursor-pointer transition-all"
                     >
                       <div className="flex justify-between items-center">
                         <h4 className="text-gray-200">{spell.name}</h4>
@@ -309,6 +351,13 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                           </button>
                         </div>
                       </div>
+                      <div
+                        className={`mt-1 text-sm font-medium bg-gradient-to-r ${
+                          getSchoolColor(spell.school)
+                        } bg-clip-text text-transparent`}
+                      >
+                        {spell.school}
+                      </div>
                       {selectedSpell?.id === spell.id && (
                         <div className="mt-4 space-y-2 text-sm text-gray-400">
                           <p>{spell.description}</p>
@@ -328,7 +377,9 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                             {spell.savingThrow && (
                               <div>
                                 <span className="font-medium text-gray-300">Tiro Salvezza:</span>
-                                <p>{spell.savingThrow.type} - {spell.savingThrow.effect}</p>
+                                <p>
+                                  {spell.savingThrow.type} - {spell.savingThrow.effect}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -356,17 +407,19 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
             .sort(([a], [b]) => Number(a) - Number(b))
             .map(([level, spells]) => (
               <div key={level} className="space-y-4">
-                <h3 className={`text-2xl font-medieval bg-gradient-to-r 
-                             ${SLOT_COLORS[Number(level)]} bg-clip-text text-transparent`}>
+                <h3
+                  className={`text-2xl font-medieval bg-gradient-to-r 
+                                     ${SLOT_COLORS[Number(level)]} bg-clip-text text-transparent`}
+                >
                   Livello {level}
                 </h3>
                 <div className="grid gap-2">
-                  {spells.map(spell => (
+                  {spells.map((spell) => (
                     <div
                       key={spell.id}
                       onClick={() => setSelectedSpell(selectedSpell?.id === spell.id ? null : spell)}
                       className="p-3 rounded-lg bg-white/5 backdrop-blur-lg border border-white/10 
-                               hover:bg-white/10 cursor-pointer transition-all"
+                                       hover:bg-white/10 cursor-pointer transition-all"
                     >
                       <div className="flex justify-between items-center">
                         <h4 className="text-gray-200">{spell.name}</h4>
@@ -395,6 +448,13 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                           </button>
                         </div>
                       </div>
+                      <div
+                        className={`mt-1 text-sm font-medium bg-gradient-to-r ${
+                          getSchoolColor(spell.school)
+                        } bg-clip-text text-transparent`}
+                      >
+                        {spell.school}
+                      </div>
                       {selectedSpell?.id === spell.id && (
                         <div className="mt-4 space-y-2 text-sm text-gray-400">
                           <p>{spell.description}</p>
@@ -414,7 +474,9 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                             {spell.savingThrow && (
                               <div>
                                 <span className="font-medium text-gray-300">Tiro Salvezza:</span>
-                                <p>{spell.savingThrow.type} - {spell.savingThrow.effect}</p>
+                                <p>
+                                  {spell.savingThrow.type} - {spell.savingThrow.effect}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -450,9 +512,7 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-lg w-full max-w-md">
             <h3 className="text-lg font-medium text-red-400 mb-4">Conferma Eliminazione</h3>
-            <p className="text-gray-300 mb-6">
-              Sei sicuro di voler eliminare questo incantesimo?
-            </p>
+            <p className="text-gray-300 mb-6">Sei sicuro di voler eliminare questo incantesimo?</p>
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => setDeleteConfirmation(null)}
@@ -463,7 +523,7 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
               <button
                 onClick={() => handleDeleteSpell(deleteConfirmation)}
                 className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg
-                         hover:bg-red-500/30 transition-colors"
+                                 hover:bg-red-500/30 transition-colors"
               >
                 Elimina
               </button>
@@ -479,101 +539,105 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
             <h3 className="text-xl font-medieval text-purple-400 mb-6">
               {editingSpell ? 'Modifica Incantesimo' : 'Nuovo Incantesimo'}
             </h3>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Nome
-                  </label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Nome</label>
                   <input
                     type="text"
                     value={spellForm.name}
                     onChange={(e) => setSpellForm({ ...spellForm, name: e.target.value })}
                     className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                             text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                     text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Livello
-                  </label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Livello</label>
                   <select
                     value={spellForm.level}
                     onChange={(e) => setSpellForm({ ...spellForm, level: Number(e.target.value) })}
                     className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                             text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                     text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
                     {[...Array(10)].map((_, i) => (
-                      <option key={i} value={i}>Livello {i}</option>
+                      <option key={i} value={i}>
+                        Livello {i}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Descrizione
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Scuola</label>
+                <select
+                  value={spellForm.school}
+                  onChange={(e) => setSpellForm({ ...spellForm, school: e.target.value as SpellSchool })}
+                  className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
+                                   text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {SPELL_SCHOOLS.map((school) => (
+                    <option key={school} value={school}>
+                      {school}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Descrizione</label>
                 <textarea
                   value={spellForm.description}
                   onChange={(e) => setSpellForm({ ...spellForm, description: e.target.value })}
                   rows={3}
                   className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                           text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                                   text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Effetto
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Effetto</label>
                 <textarea
                   value={spellForm.effect}
                   onChange={(e) => setSpellForm({ ...spellForm, effect: e.target.value })}
                   rows={2}
                   className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                           text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                                   text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Tempo di Lancio
-                  </label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Tempo di Lancio</label>
                   <input
                     type="text"
                     value={spellForm.castingTime}
                     onChange={(e) => setSpellForm({ ...spellForm, castingTime: e.target.value })}
                     className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                             text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                     text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Durata
-                  </label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Durata</label>
                   <input
                     type="text"
                     value={spellForm.duration}
                     onChange={(e) => setSpellForm({ ...spellForm, duration: e.target.value })}
                     className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                             text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                     text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Raggio
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Raggio</label>
                 <input
                   type="text"
                   value={spellForm.range}
                   onChange={(e) => setSpellForm({ ...spellForm, range: e.target.value })}
                   className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                           text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                   text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
@@ -586,21 +650,19 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                       if (e.target.checked) {
                         setSpellForm({
                           ...spellForm,
-                          savingThrow: { type: 'fortitude', effect: '' }
+                          savingThrow: { type: 'fortitude', effect: '' },
                         });
                       } else {
                         setSpellForm({
                           ...spellForm,
-                          savingThrow: undefined
+                          savingThrow: undefined,
                         });
                       }
                     }}
                     className="rounded border-white/10 bg-white/5 text-purple-500 
-                           focus:ring-purple-500"
+                                   focus:ring-purple-500"
                   />
-                  <span className="text-sm font-medium text-gray-300">
-                    Richiede Tiro Salvezza
-                  </span>
+                  <span className="text-sm font-medium text-gray-300">Richiede Tiro Salvezza</span>
                 </label>
 
                 {spellForm.savingThrow && (
@@ -608,15 +670,17 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                     <div>
                       <select
                         value={spellForm.savingThrow.type}
-                        onChange={(e) => setSpellForm({
-                          ...spellForm,
-                          savingThrow: {
-                            ...spellForm.savingThrow!,
-                            type: e.target.value as 'fortitude' | 'reflex' | 'will'
-                          }
-                        })}
+                        onChange={(e) =>
+                          setSpellForm({
+                            ...spellForm,
+                            savingThrow: {
+                              ...spellForm.savingThrow!,
+                              type: e.target.value as 'fortitude' | 'reflex' | 'will',
+                            },
+                          })
+                        }
                         className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                                 text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                         text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="fortitude">Tempra</option>
                         <option value="reflex">Riflessi</option>
@@ -627,16 +691,18 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                       <input
                         type="text"
                         value={spellForm.savingThrow.effect}
-                        onChange={(e) => setSpellForm({
-                          ...spellForm,
-                          savingThrow: {
-                            ...spellForm.savingThrow!,
-                            effect: e.target.value
-                          }
-                        })}
+                        onChange={(e) =>
+                          setSpellForm({
+                            ...spellForm,
+                            savingThrow: {
+                              ...spellForm.savingThrow!,
+                              effect: e.target.value,
+                            },
+                          })
+                        }
                         placeholder="Effetto del tiro salvezza"
                         className="w-full p-2 bg-transparent border border-gray-500 rounded-lg
-                                 text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                         text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
                     </div>
                   </div>
@@ -650,16 +716,13 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                     checked={spellForm.resistance}
                     onChange={(e) => setSpellForm({ ...spellForm, resistance: e.target.checked })}
                     className="rounded border-white/10 bg-white/5 text-purple-500 
-                           focus:ring-purple-500"
+                                 focus:ring-purple-500"
                   />
-                  <span className="text-sm font-medium text-gray-300">
-                    È possibile resistere
-                  </span>
+                  <span className="text-sm font-medium text-gray-300">È possibile resistere</span>
                 </label>
               </div>
             </div>
 
-            {/* Pulsanti di Azione del Modale */}
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => {
@@ -668,13 +731,14 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
                   setSpellForm({
                     name: '',
                     level: 0,
+                    school: 'Abiurazione',
                     description: '',
                     effect: '',
                     castingTime: '',
                     duration: '',
                     range: '',
                     resistance: false,
-                    savingThrow: undefined
+                    savingThrow: undefined,
                   });
                 }}
                 className="px-4 py-2 text-gray-400 hover:text-red-400 transition-colors"
@@ -684,7 +748,7 @@ export default function Spells({ character, onUpdate }: SpellsProps) {
               <button
                 onClick={handleSaveSpell}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 
-                         rounded-lg hover:bg-purple-500/30 transition-colors"
+                             rounded-lg hover:bg-purple-500/30 transition-colors"
               >
                 <Save className="w-5 h-5" />
                 <span>Salva</span>
